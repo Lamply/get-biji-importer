@@ -1,90 +1,40 @@
-# Obsidian Sample Plugin
+这是一个非官方的 Get 笔记导入 Obsidian 的插件，旨在下载并转换 Get App 导出的笔记。通过输入笔记下载链接，插件会自动下载包含笔记内容的压缩包，提取其中的 HTML 文件，并将其转换为带有 YAML 元数据的标准 Markdown 文件，直接无缝导入到您的 Obsidian 笔记库中。
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+## 注意事项
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+本项目只实现了部分元数据和文字笔记的导入功能，仅基于当前数据格式，需要完整功能和长期支持的请参考其他基于官方 API 的实现。
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## ✨ 核心功能
 
-## First time developing plugins?
+- **一键下载与转换**：通过 URL 直接获取笔记，自动完成 ZIP 解压和 HTML 到 Markdown 的转换。
+- **规范化元数据**：自动提取笔记的标题、创建时间、标签，并生成标准的 YAML Frontmatter。
+- **智能内容清理**：自动过滤并清理笔记中冗余的内容（如浏览器不支持的 audio 元素提示、多余的 `* * *` 分隔符和末尾脚本代码）。
+- **便捷的交互入口**：
+  - 左侧边栏（Ribbon）底部提供下载按钮。
+  - 支持通过命令面板 (`Ctrl+P` / `Cmd+P`) 调用 `下载并转换笔记` 命令。
+- **自定义输出目录**：可在插件设置中自定义转换后 Markdown 文件的保存路径。
 
-Quick starting guide for new plugin devs:
+## 🚀 安装指南
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+由于当前插件尚未上架社区商店，请通过以下步骤手动安装：
 
-## Releasing new releases
+1. 前往本仓库的 **Releases** 页面。
+2. 下载最新版本中的 `main.js`、`styles.css` 和 `manifest.json` 文件。
+3. 在您的 Obsidian 笔记库根目录下，找到并打开 `.obsidian/plugins/` 文件夹。
+4. 在该文件夹中创建一个新文件夹（例如 `get-biji-importer`），将下载的 3 个文件放入其中。
+5. 重启 Obsidian。
+6. 进入 `Obsidian 设置 -> 第三方插件`，关闭“安全模式”。
+7. 刷新插件列表，找到 **Get笔记导入** 并启用。
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+## 💡 使用方法
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+1. 在 Obsidian 中，点击左侧边栏底部（或顶部）的 **“Get笔记导入”** 图标，或者打开命令面板执行 `下载并转换笔记` 命令。
+2. 在弹出的窗口中，粘贴目标笔记的 URL 地址。
+3. 点击 **下载并转换** 按钮。
+4. 插件将自动下载并解析，您会在右上角看到处理进度的通知。处理完成后，笔记会自动出现在您设置的输出文件夹中。
 
-## Adding your plugin to the community plugin list
+## ⚙️ 插件设置
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+进入 `Obsidian 设置 -> 第三方插件 -> Get笔记导入` 即可配置以下选项：
 
-## How to use
-
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
-
-## Manually installing the plugin
-
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
-
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
-```
-
-If you have multiple URLs, you can also do:
-
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
-
-## API Documentation
-
-See https://docs.obsidian.md
+- **输出文件夹**：设定处理后的 Markdown 文件存放在 Vault 中的路径。如果设置的文件夹不存在，插件会在首次下载时自动创建（默认值为 `get`）。

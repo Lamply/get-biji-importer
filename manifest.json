@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "get-biji-importer",
+	"name": "Get笔记导入",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "下载导入Get笔记，清除冗余数据，转换为Markdown格式，方便在Obsidian中使用。",
+	"author": "Lamply",
+	"authorUrl": "https://github.com/Lamply/get-biji-importer",
 	"isDesktopOnly": false
 }

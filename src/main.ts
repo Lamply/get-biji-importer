@@ -1,99 +1,223 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import { App, Plugin, PluginSettingTab, Setting, Modal, Notice, requestUrl } from 'obsidian';
+import * as JSZip from 'jszip';
+import TurndownService from 'turndown';
 
-// Remember to rename these classes and interfaces!
+// 1. Define Plugin Settings
+interface GetBijiImporterPluginSettings {
+	outputFolder: string;
+}
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+const DEFAULT_SETTINGS: GetBijiImporterPluginSettings = {
+	outputFolder: 'get'
+}
+
+export default class GetBijiImporterPlugin extends Plugin {
+	settings: GetBijiImporterPluginSettings;
 
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
+		// Add ribbon icon (button on the left sidebar)
+		const ribbonIconEl = this.addRibbonIcon('download', 'Get笔记导入', (evt: MouseEvent) => {
+ 			new DownloadModal(this.app, this).open();
+ 		});
+		ribbonIconEl.addClass('download-ribbon-button');
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
+		// Add a command to open the download modal
 		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
+			id: 'download-and-convert-notes',
+			name: '下载并转换笔记',
 			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
+				new DownloadModal(this.app, this).open();
 			}
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
-	}
-
-	onunload() {
+		// Add settings tab
+		this.addSettingTab(new GetBijiImporterSettingTab(this.app, this));
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<GetBijiImporterPluginSettings>);
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
+
+	// 2. Core Processing Logic
+	async processNotes(url: string) {
+		try {
+			new Notice("下载zip文件...");
+			
+			// Download the zip file
+			const response = await requestUrl({
+				url: url,
+				method: "GET",
+			});
+
+			if (response.status !== 200) {
+				throw new Error(`Download failed with status ${response.status}`);
+			}
+
+			new Notice("正在处理笔记...");
+			
+			// Load the zip buffer
+			const zip = await JSZip.loadAsync(response.arrayBuffer);
+			
+			// Setup Markdown converter
+			const turndownService = new TurndownService({ headingStyle: 'atx' });
+			const parser = new DOMParser();
+			
+			let successCount = 0;
+
+			// Ensure output folder exists
+			const folderPath = this.settings.outputFolder;
+			const folder = this.app.vault.getAbstractFileByPath(folderPath);
+			if (!folder) {
+				await this.app.vault.createFolder(folderPath);
+			}
+
+			// Iterate through files in the zip
+			for (const [filename, fileData] of Object.entries(zip.files)) {
+				// Only process HTML files inside 'notes/' (mimicking your bash script)
+				if (!fileData.dir && filename.includes('notes/') && filename.endsWith('.html')) {
+					
+					const htmlContent = await fileData.async("string");
+					const doc = parser.parseFromString(htmlContent, "text/html");
+					
+					const noteDiv = doc.querySelector('.note');
+					if (!noteDiv) continue; // Skip if no note container
+
+					// Extract Title
+					const titleTag = noteDiv.querySelector('h1');
+					const title = titleTag ? titleTag.textContent?.trim() : "无标题";
+
+					// Extract Creation Time
+					let creationTime = "未知时间";
+					const pTags = noteDiv.querySelectorAll('p');
+					pTags.forEach(p => {
+						const text = p.textContent?.trim() || "";
+						if (text.startsWith('创建于：')) {
+							creationTime = text.replace('创建于：', '').trim();
+						}
+					});
+
+					// Extract Tags
+					const tags: string[] = [];
+					const spanTags = noteDiv.querySelectorAll('span.tag');
+					spanTags.forEach(span => {
+						if (span.textContent) tags.push(span.textContent.trim());
+					});
+
+					// Handle the Audio element text removal (mimicking your python split behavior)
+					let markdownBody = turndownService.turndown(htmlContent);
+					const audioSplitter = "您的浏览器不支持 audio 元素。";
+					if (markdownBody.includes(audioSplitter)) {
+						markdownBody = markdownBody.split(audioSplitter).slice(1).join(audioSplitter).trim();
+					} else {
+						const hrSplitter = "\n* * *\n";
+						if (markdownBody.includes(hrSplitter)) {
+							markdownBody = markdownBody.split(hrSplitter).slice(1).join(hrSplitter).trim();
+						}
+					}
+					markdownBody = markdownBody.replace("document.addEventListener('DOMContentLoaded', initDetailPage);", "").trim();
+
+					// Format Frontmatter
+					const datePart = creationTime.split(' ')[0] || "";
+					const tagsFormatted = tags.length > 0 ? `\n${tags.map(t => `- ${t}`).join('\n')}` : "";
+					const finalMarkdown = `---\n` +
+						`title: "${title}"\n` +
+						`date: ${datePart}\n` +
+						`tags: \n${tagsFormatted}\n` +
+						`---\n` +
+						`${markdownBody}`;
+
+					// Safe filename generation
+					const safeTitle = (title || "Unnamed").replace(/[^a-zA-Z0-9._\-\u4e00-\u9fa5]/g, '-');
+					const filePath = `${folderPath}/${safeTitle}.md`;
+
+					// Save to Obsidian Vault
+					const existingFile = this.app.vault.getAbstractFileByPath(filePath);
+					if (!existingFile) {
+						await this.app.vault.create(filePath, finalMarkdown);
+						successCount++;
+					}
+				}
+			}
+
+			new Notice(`成功处理 ${successCount} 个新笔记！`);
+
+		} catch (error: unknown) {
+			console.error(error);
+			new Notice(`处理笔记时出错: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
+// 3. Modal for User Input
+class DownloadModal extends Modal {
+	plugin: GetBijiImporterPlugin;
+	urlInput: string;
+
+	constructor(app: App, plugin: GetBijiImporterPlugin) {
 		super(app);
+		this.plugin = plugin;
 	}
 
 	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
+		const {contentEl} = this;
+		contentEl.createEl("h2", { text: "下载笔记" });
+
+		const inputWrapper = contentEl.createDiv();
+		const inputElement = inputWrapper.createEl("input", {
+			type: "text",
+			placeholder: "在这里输入URL...",
+		});
+		inputElement.setCssProps({ width: "100%", marginBottom: "1em" });
+
+		inputElement.addEventListener("input", (e) => {
+			this.urlInput = (e.target as HTMLInputElement).value;
+		});
+
+		const submitBtn = contentEl.createEl("button", { text: "下载并转换" });
+		submitBtn.addEventListener("click", () => {
+			if (this.urlInput) {
+				void this.plugin.processNotes(this.urlInput);
+				this.close();
+			} else {
+				new Notice("Please enter a valid URL.");
+			}
+		});
 	}
 
 	onClose() {
 		const {contentEl} = this;
 		contentEl.empty();
+	}
+}
+
+// 4. Settings Tab
+class GetBijiImporterSettingTab extends PluginSettingTab {
+	plugin: GetBijiImporterPlugin;
+
+	constructor(app: App, plugin: GetBijiImporterPlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		const {containerEl} = this;
+		containerEl.empty();
+
+		new Setting(containerEl)
+			.setName('输出文件夹')
+			.setDesc('保存路径，在你的Obsidian库中，文件将被保存在这个文件夹下。')
+			.addText(text => text
+				.setPlaceholder('Downloaded notes')
+				.setValue(this.plugin.settings.outputFolder)
+				.onChange(async (value) => {
+					this.plugin.settings.outputFolder = value;
+					await this.plugin.saveSettings();
+				}));
 	}
 }

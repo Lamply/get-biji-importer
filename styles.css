@@ -6,3 +6,12 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+.side-dock-ribbon {
+    display: flex;
+    flex-direction: column;
+}
+
+.download-ribbon-button {
+    order: 100; /* High number moves it to the end of the flex list */
+    margin-top: auto; /* This specifically pushes it away from the top icons */
+}
